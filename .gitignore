@@ -1,3 +1,13 @@
+# docs
+*.eddx
+
+# vscode config
+.vscode
+
+# test scripts
+*.bat
+main.c
+
 # Prerequisites
 *.d
 
