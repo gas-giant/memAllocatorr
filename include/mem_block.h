@@ -13,6 +13,7 @@ exp. [2^4]对应的内存块类型，其大小的取值范围x为 2^4 <= x <= 2^
 typedef struct MemBlockStru {
     U32 size;
     U32 type;
+    U32 isUsed;
     struct MemBlockStru *next;
     struct MemBlockStru *prev;
 } MemBlock;

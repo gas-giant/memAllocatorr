@@ -12,6 +12,7 @@ typedef struct MemPartitionStru {
     U32 ptSize;
     U32 ptIndex;
     MemBlock *freeMemList[MAX_BLOCK_TYPE_NUM];
+    MemBlock *usedMemList[MAX_BLOCK_TYPE_NUM];
 
     // 申请内存
     U8 *(*MemAlloc)(struct MemPartitionStru *this, U32 size);
