@@ -7,7 +7,7 @@ MemPartition *g_memPtCtrls[MAX_PT_NUM] = {NULL};
 // 获取从左至右第一个非零bit所在的下标
 static U32 GetFirstNoneZeroBitIndex(U32 n)
 {
-    for (U32 i = 31; i >= 0; ++i) {
+    for (U32 i = 31; i >= 0; --i) {
         if (((1 << i) & n) != 0) {
             return i;
         }
@@ -64,13 +64,11 @@ U8 *MemAllocFsc(MemPartition *this, U32 size)
         buddyMemBlock = (MemBlock *)((U8 *)(curMemBlock) + sizeof(MemBlock) + size + sizeof(U64));
         buddyMemBlock->size = curMemBlock->size - size - sizeof(U64) - sizeof(MemBlock);
         buddyMemBlock->type = GetFirstNoneZeroBitIndex(buddyMemBlock->size);
-        buddyMemBlock->isUsed = 0;
         *((U32 *)((U8 *)(buddyMemBlock) + sizeof(MemBlock) + buddyMemBlock->size)) = buddyMemBlock->size;
         *((U32 *)((U8 *)(buddyMemBlock) + sizeof(MemBlock) + buddyMemBlock->size + sizeof(U32))) = buddyMemBlock->type;
         // cur块
         curMemBlock->size = size;
         curMemBlock->type = inputType;
-        curMemBlock->isUsed = 1;
         *((U32 *)((U8 *)(buddyMemBlock) - sizeof(U64))) = size;
         *((U32 *)((U8 *)(buddyMemBlock) - sizeof(U32))) = inputType;
     }
@@ -83,6 +81,7 @@ U8 *MemAllocFsc(MemPartition *this, U32 size)
     
     // 4. 新内存块加入新链表
     // 当前内存块加入已用内存块链表
+    curMemBlock->isUsed = 1;
     curMemBlock->next = this->usedMemList[curMemBlock->type]->next;
     curMemBlock->prev = this->usedMemList[curMemBlock->type];
     curMemBlock->prev->next = curMemBlock;
@@ -91,6 +90,7 @@ U8 *MemAllocFsc(MemPartition *this, U32 size)
     }
     // buddy内存块加入空闲内存块链表
     if (buddyMemBlock != NULL) {
+        buddyMemBlock->isUsed = 0;
         buddyMemBlock->next = this->freeMemList[buddyMemBlock->type]->next;
         buddyMemBlock->prev = this->freeMemList[buddyMemBlock->type];
         buddyMemBlock->prev->next = buddyMemBlock;
@@ -106,6 +106,78 @@ U8 *MemAllocFsc(MemPartition *this, U32 size)
 // 释放内存
 U32 MemFreeFsc(MemPartition *this, void *mem)
 {
+    if (this == NULL || mem == NULL) {
+        return MEM_ALLOCATOR_PARA_ERROR;
+    }
+    // 当前内存块
+    MemBlock *curMemBlock = (MemBlock *)((U8 *)mem - sizeof(MemBlock));
+    // 后一个相邻内存块。若当前内存块是分区高地址边界，则不存在后一个相邻内存块
+    MemBlock *backMemBlock = (MemBlock *)((U8 *)mem + curMemBlock->size + sizeof(U64));
+    if ((U64)backMemBlock >= (U64)(this->ptAddr + this->ptSize)) {
+        backMemBlock = NULL;
+    }
+    // 前一个相邻内存块。若当前内存块是分区低地址边界，则不存在前一个相邻内存块
+    MemBlock *frontMemBlock = NULL;
+    if ((U64)curMemBlock > (U64)this->ptAddr) {
+        frontMemBlock = (MemBlock *)((U8 *)curMemBlock - *(U32 *)((U8 *)curMemBlock - sizeof(U64)) - sizeof(MemBlock));
+    }
+
+    // 1.删除已用内存块链表中的curMemBlock
+    curMemBlock->isUsed = 0;
+    curMemBlock->prev->next = curMemBlock->next;
+    if (curMemBlock->next != NULL) {
+        curMemBlock->next->prev = curMemBlock->prev;
+    }
+
+    // 2.合并后面相邻的空闲内存块
+    if (backMemBlock != NULL && backMemBlock->isUsed == 0) {
+        // 删除空闲链表中的backMemBlock
+        backMemBlock->prev->next = backMemBlock->next;
+        if (backMemBlock->next != NULL) {
+            backMemBlock->next->prev = backMemBlock->prev;
+        }
+
+        // 合并
+        curMemBlock->size += sizeof(U64) + sizeof(MemBlock) + backMemBlock->size;
+        curMemBlock->type = GetFirstNoneZeroBitIndex(curMemBlock->size);
+        *(U32 *)((U8 *)curMemBlock + sizeof(MemBlock) + curMemBlock->size) = curMemBlock->size;
+        *(U32 *)((U8 *)curMemBlock + sizeof(MemBlock) + curMemBlock->size + sizeof(U32)) = curMemBlock->type;
+        backMemBlock = NULL;
+
+        // curMemBlock插入空闲链表
+        curMemBlock->next = this->freeMemList[curMemBlock->type]->next;
+        curMemBlock->prev = this->freeMemList[curMemBlock->type];
+        curMemBlock->prev->next = curMemBlock;
+        if (curMemBlock->next != NULL) {
+            curMemBlock->next->prev = curMemBlock;
+        }
+    }
+
+    // 3.合并前面相邻的空闲内存块
+    if (frontMemBlock != NULL && frontMemBlock->isUsed == 0) {
+        // 删除空闲链表中的frontMemBlock
+        frontMemBlock->prev->next = frontMemBlock->next;
+        if (frontMemBlock->next != NULL) {
+            frontMemBlock->next->prev = frontMemBlock->prev;
+        }
+        
+        // 合并
+        frontMemBlock->size += sizeof(U64) + sizeof(MemBlock) + curMemBlock->size;
+        frontMemBlock->type = GetFirstNoneZeroBitIndex(frontMemBlock->size);
+        *(U32 *)((U8 *)frontMemBlock + sizeof(MemBlock) + frontMemBlock->size) = frontMemBlock->size;
+        *(U32 *)((U8 *)frontMemBlock + sizeof(MemBlock) + frontMemBlock->size + sizeof(U32)) = frontMemBlock->type;
+        curMemBlock = frontMemBlock;
+        frontMemBlock = NULL;
+
+        // curMemBlock插入空闲链表
+        curMemBlock->next = this->freeMemList[curMemBlock->type]->next;
+        curMemBlock->prev = this->freeMemList[curMemBlock->type];
+        curMemBlock->prev->next = curMemBlock;
+        if (curMemBlock->next != NULL) {
+            curMemBlock->next->prev = curMemBlock;
+        }
+    }
+
     return MEM_ALLOCATOR_OK;
 }
 
@@ -165,7 +237,7 @@ MemPartition *CreateMemPt(U32 ptIndex, U32 ptSize)
     // 初始化内存块尾部
     U8 *maxBlockTail = (U8 *)ptCtrl->ptAddr + ptSize - sizeof(U64); // 最大内存块尾部信息
     *((U32 *)(maxBlockTail++)) = maxBlock->size;
-    *(maxBlockTail) = maxBlock->type;
+    *((U32 *)maxBlockTail) = maxBlock->type;
     // 最大空闲内存块加入空闲内存块链表
     ptCtrl->freeMemList[maxBlock->type]->next = maxBlock;
     maxBlock->prev = ptCtrl->freeMemList[maxBlock->type];

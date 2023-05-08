@@ -14,6 +14,7 @@ typedef struct MemBlockStru {
     U32 size;
     U32 type;
     U32 isUsed;
+    U32 pad;
     struct MemBlockStru *next;
     struct MemBlockStru *prev;
 } MemBlock;
