@@ -10,11 +10,11 @@ exp. [2^4]对应的内存块类型，其大小的取值范围x为 2^4 <= x <= 2^
 */
 #define MAX_BLOCK_TYPE_NUM 32     // 内存块种类数
 
-typedef struct {
+typedef struct MemBlockStru {
     U32 size;
     U32 type;
-    MemBlock *next;
-    MemBlock *prev;
+    struct MemBlockStru *next;
+    struct MemBlockStru *prev;
 } MemBlock;
 
 #endif

@@ -4,6 +4,18 @@
 // 内存分区数组
 MemPartition *g_memPtCtrls[MAX_PT_NUM] = {NULL};
 
+// 获取从左至右第一个非零bit所在的下标
+static U32 GetFirstNoneZeroBitIndex(U32 n)
+{
+    for (U32 i = 31; i >= 0; ++i) {
+        if (((1 << i) & n) != 0) {
+            return i;
+        }
+    }
+    // 若n为0，则返回0
+    return 0;
+}
+
 // 申请内存
 U8 *MemAllocFsc(MemPartition *this, U32 size)
 {
@@ -94,17 +106,6 @@ U32 MemFreeFsc(MemPartition *this, void *mem)
     return MEM_ALLOCATOR_OK;
 }
 
-// 获取从左至右第一个非零bit所在的下标
-static U32 GetFirstNoneZeroBitIndex(U32 n)
-{
-    for (U32 i = 0; i <= 31; ++i) {
-        if (((0x80000000 >> i) & n) != 0) {
-            return 31 - i;
-        }
-    }
-    return 31;
-}
-
 // 创建分区
 MemPartition *CreateMemPt(U32 ptIndex, U32 ptSize)
 {
@@ -126,7 +127,7 @@ MemPartition *CreateMemPt(U32 ptIndex, U32 ptSize)
     ptCtrl->MemFree = MemFreeFsc;
 
     // 3. 空闲内存块链表初始化, 头节点初始化为非法值
-    for (U32 i = 0; i < MAX_BLOCK_TYPE_NUM - 1; ++i) {
+    for (U32 i = 0; i < MAX_BLOCK_TYPE_NUM; ++i) {
         ptCtrl->freeMemList[i] = (MemBlock *)malloc(sizeof(MemBlock) + sizeof(U64));
         // 内存块头部非法值
         ptCtrl->freeMemList[i]->next = NULL;
