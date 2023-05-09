@@ -15,9 +15,9 @@ typedef struct MemPartitionStru {
     MemBlock *usedMemList[MAX_BLOCK_TYPE_NUM];
 
     // 申请内存
-    U8 *(*MemAlloc)(struct MemPartitionStru *this, U32 size);
+    U8 *(*MemAlloc)(const struct MemPartitionStru *this, const U32 size);
     // 释放内存
-    U32 (*MemFree)(struct MemPartitionStru *this, void *mem);
+    U32 (*MemFree)(const struct MemPartitionStru *this, const void *mem);
 } MemPartition;
 
 
@@ -25,8 +25,8 @@ typedef struct MemPartitionStru {
 extern MemPartition *g_memPtCtrls[MAX_PT_NUM];
 
 // 创建分区
-MemPartition *CreateMemPt(U32 ptIndex, U32 ptSize);
+MemPartition *CreateMemPt(const U32 ptIndex, const U32 ptSize);
 // 删除分区
-void DeleteMemPt(MemPartition *this);
+void DeleteMemPt(const MemPartition *this);
 
 #endif
