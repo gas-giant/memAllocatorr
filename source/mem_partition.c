@@ -119,7 +119,7 @@ U32 MemFreeFsc(MemPartition *this, void *mem)
     // 前一个相邻内存块。若当前内存块是分区低地址边界，则不存在前一个相邻内存块
     MemBlock *frontMemBlock = NULL;
     if ((U64)curMemBlock > (U64)this->ptAddr) {
-        frontMemBlock = (MemBlock *)((U8 *)curMemBlock - *(U32 *)((U8 *)curMemBlock - sizeof(U64)) - sizeof(MemBlock));
+        frontMemBlock = (MemBlock *)((U8 *)curMemBlock - sizeof(U64) - *(U32 *)((U8 *)curMemBlock - sizeof(U64)) - sizeof(MemBlock));
     }
 
     // 1.删除已用内存块链表中的curMemBlock
